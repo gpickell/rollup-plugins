@@ -1,0 +1,33 @@
+{
+    "name": "@tsereact/rollup-plugin-web-server",
+    "version": "1.0.0",
+    "main": "dist/index.js",
+    "module": "dist/index.mjs",
+    "type": "commonjs",
+    "license": "MIT",
+    "exports": {
+        ".": {
+            "module": "./dist/index.mjs",
+            "require": "./dist/index.js",
+            "default": "./dist/index.js"
+        },
+        "./dist/*": {
+            "module": "./dist/*.mjs",
+            "require": "./dist/*.js",
+            "default": "./dist/*.js"
+        },
+        "./*": {
+            "module": "./dist/*.mjs",
+            "require": "./dist/*.js",
+            "default": "./dist/*.js"
+        }
+    },
+    "types": "index.d.ts",
+    "typesVersions": {
+        "*": {
+            "*": [
+                "dist/*"
+            ]
+        }
+    }
+}
