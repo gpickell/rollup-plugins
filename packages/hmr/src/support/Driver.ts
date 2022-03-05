@@ -1,6 +1,10 @@
+import type Context from "./Context";
+import contexts from "./contexts";
+
 import { hints } from "./register";
 import watch from "./watch";
 
+const aborted = new WeakSet();
 const drivers = new Map<typeof Driver, Driver>();
 
 watch.add(drivers, () => {
@@ -50,12 +54,12 @@ function derive(): AbortControllerClass {
         handlers = new Set<() => any>();
 
         get aborted() {
-            return Object.isFrozen(this);
+            return aborted.has(this);
         }
 
         abort() {
             if (!this.aborted) {
-                Object.freeze(this);
+                aborted.add(this);
 
                 const { handlers } = this;
                 for (const handler of handlers) {
@@ -78,11 +82,68 @@ function derive(): AbortControllerClass {
     }
 }
 
-export class Watch extends derive() {
-
+interface Manifest {
+    url?: string;
+    hash: string;
+    version: number;
+    chunks: Record<string, string[]>;
 }
 
-export interface Watch extends Pick<AbortController, "abort"> {
+let current: Manifest | undefined;
+
+function test(next: Manifest, url: string) {
+    if (typeof next !== "object" || next === null) {
+        return false;
+    }
+
+    if (typeof next.hash !== "string") {
+        return false;
+    }
+
+    if (typeof next.version !== "number") {
+        return false;
+    }
+
+    const { chunks } = next;
+    if (typeof chunks !== "object" || chunks === null) {
+        return false;
+    }
+
+    for (const key in chunks) {
+        const values = chunks[key];
+        if (!Array.isArray(values)) {
+            return false;
+        }
+
+        if (values.some(x => typeof x !== "string")) {
+            return false;
+        }
+    }
+
+    if (current?.url === url) {
+        if (next.hash === current.hash) {
+            return false;
+        }
+
+        if (next.version <= current.version) {
+            return false;
+        }
+    }
+
+    next.chunks = {};
+    next.url = url;
+
+    for (const key in chunks) {
+        const _key = (new URL(key, url)).toString();
+        next.chunks[_key] = chunks[key];
+    }
+
+    current = next;
+
+    return true;
+}
+
+export class Watch extends derive() {
     
 }
 
@@ -139,17 +200,63 @@ class Driver {
             }
         }
 
-        for (const [url, abort] of watches) {
+        for (const [url, watch] of watches) {
             if (!hints.has(url)) {
-                abort.abort();
+                watch.abort();
                 watches.delete(url);
             }
         }
     }
 
+    load(url: string) {
+        return import(url);
+    }
+
+    gc(context: Context) {
+        if (contexts.get(context.id) === context && context.ready) {
+            contexts.delete(context.id);
+
+            Object.defineProperty(context, "ready", { value: false, writable: false });
+            context.detach();
+            Object.freeze(context);
+        }
+    }
+
     tap(url: string, payload: string) {
-        url;
-        payload;
+        try {
+            const result = JSON.parse(payload) as Manifest;
+            if (test(result, url)) {
+                const set = hints.get(url);
+                const exists = new Set<string>();
+                const spawn = new Set<string>();
+                const { chunks } = result;
+                for (const key in chunks) {
+                    const files = chunks[key];
+                    for (const file of files) {
+                        exists.add(file);
+
+                        if (set?.has(file)) {
+                            spawn.add(key)
+                        }
+                    }
+                }
+
+                const promises = [...spawn].map(x => this.load(x));
+                Promise.all(promises).then(() => {
+                    if (current === result) {
+                        for (const context of contexts.values()) {
+                            if (!exists.has(context.id)) {
+                                this.gc(context);
+                            }
+                        }
+                    }
+                });
+
+                watch.pulse();
+            }
+        } catch {
+            // parse failure
+        }
     }
 
     // @ts-expect-error

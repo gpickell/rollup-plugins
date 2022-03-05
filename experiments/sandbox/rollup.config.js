@@ -1,9 +1,9 @@
 import { defineConfig } from "rollup";
 
-// import hmr from "@tsereact/rollup-plugin-hmr";
-// import stub from "@tsereact/rollup-plugin-stub";
-
-import webServer from "@tsereact/rollup-plugin-web-server";
+import hmr from "@tsereact/rollup-plugin-hmr";
+import omegaClean from "@tsereact/rollup-plugin-omega-clean";
+import stub from "@tsereact/rollup-plugin-stub";
+// import webServer from "@tsereact/rollup-plugin-web-server";
 
 import commonjs from "@rollup/plugin-commonjs";
 import nodeResolve from "@rollup/plugin-node-resolve";
@@ -22,18 +22,12 @@ export default defineConfig({
             chunkFileNames: "assets/chunk.[hash].mjs",
             sourcemap: true,
         },
-        {
-            dir: "dist",
-            format: "esm",
-            entryFileNames: "assets/[name].[hash].mjs",
-            chunkFileNames: "assets/chunk.[hash].mjs",
-            sourcemap: true,
-        },
     ],
     plugins: [
-        // hmr(),
-        // stub.browserModule(),
-        webServer({ dev: true }),
+        hmr(),
+        stub.nodeImport(),
+        // webServer({ dev: true }),
+        omegaClean({ gens: 2 }),
         commonjs(),
         nodeResolve(),
         typescript(),

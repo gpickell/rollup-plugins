@@ -11,7 +11,7 @@ function register(hint: string, file: string, url: string) {
     const key = href.toString();
     let set = hints.get(key);
     if (set === undefined) {
-        hints.set(url, set = new Set());
+        hints.set(key, set = new Set());
     }
 
     set.add(hint);

@@ -9,6 +9,7 @@ import http from "http";
 import path from "path";
 import zlib from "zlib";
 
+const assetsx = /^(assets|static)(-.*)?$/;
 const hashx = /\.[a-zA-Z0-9]+\.[a-zA-Z0-9]+$/;
 const slashx = /[\\/]+/g;
 const tailx = /.*\//;
@@ -298,16 +299,8 @@ class FileServer extends Array<RequestHandler> {
         }
 
         const dir = path.dirname(fn);
-        switch (path.basename(dir)) {
-            case "assets":
-            case "static":
-                break;
-
-            default:
-                return true;
-        }
-
-        if (hashx.test(fn)) {
+        const parent = path.basename(dir);
+        if (assetsx.test(parent) && hashx.test(fn)) {
             return false;
         }
 
@@ -446,93 +439,6 @@ class FileServer extends Array<RequestHandler> {
                     }
 
                     return this.error(req, res, 405);
-                }
-
-                next();
-            } catch (err) {
-                this.error(req, res, 500, err);
-            } finally {
-                await entity?.close();
-            }
-        });
-    }
-
-    serveTrack(webPath: string, fsPath: string, ...rels: string[]) {
-        [webPath, fsPath] = this.prepareForReparse(webPath, fsPath, ...rels);
-
-        let promise: Promise<void> | undefined;
-        let resolve: (() => void) | undefined;
-        let pending = false;
-        let looping = false;
-        const activate = async () => {
-            pending = true;
-
-            if (looping) {
-                return;
-            }
-
-            looping = true;
-
-            if (promise === undefined) {
-                promise = new Promise<void>(x => resolve = x);
-            }
-
-            while (pending) {
-                pending = false;
-
-                let files = false;
-                let locks = false;
-                for (const file of await safeList(fsPath)) {
-                    if (file.isFile()) {
-                        if (file.name.startsWith("lock-")) {
-                            locks = true;
-                        } else {
-                            files = true;
-                        }
-                    }
-                }
-
-                if (files && !locks) {
-                    resolve?.();
-                    promise = undefined;
-                    resolve = undefined;
-                }
-            }
-
-            looping = false;
-        };
-
-        const startup = async () => {
-            await mkdir(fsPath, { recursive: true });
-
-            const watcher = watch(fsPath, { persistent: false });
-            watcher.on("change", activate);
-
-            watcher.on("error", err => {
-                this.log && console.log("Could not watch folder [%s]:", fsPath, err);
-            });
-
-            await activate();
-
-            return watcher;
-        };
-
-        let init: Promise<FSWatcher> | undefined;
-        this.push(async (req, res, next) => {
-            let entity: Entity | undefined;
-            try {
-                if (req.url) {
-                    entity = this.reparse(webPath, fsPath, req.url);
-                }
-
-                if (entity) {
-                    if (init === undefined) {
-                        init = startup();
-                        this.watchers.add(init);
-                    }
-
-                    await init;
-                    await promise;
                 }
 
                 next();
@@ -695,7 +601,6 @@ class FileServer extends Array<RequestHandler> {
 
     configure(dev = false, preload = false, root = "dist") {
         if (dev) {
-            this.serveTrack("/", root);
             this.serveWatch("/", root, "hot");
         }
 

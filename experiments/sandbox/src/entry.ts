@@ -1,12 +1,15 @@
 import hmr from "@tsereact/rollup-plugin-hmr/hmr";
 
-console.log(hmr);
+import NodeDriver from "@tsereact/rollup-plugin-hmr/client/NodeDriver";
+NodeDriver.connect();
 
-// @ts-expect-error
-console.log("--- hmrChunk", import.meta.hmrChunk);
-// @ts-expect-error
-console.log("--- hmrModule", import.meta.hmrModule);
-// @ts-expect-error
-console.log("--- hmrVersion", import.meta.hmrVersion);
+const timer = setInterval(() => {}, 10000);
+if (hmr) {
+    hmr.detach = function (next) {
+        clearTimeout(timer);
+        console.log("---", !!next);
+    };
 
-export const id = 0;
+    console.log("---", hmr.id, hmr.version);
+    console.log("---", "test456");
+}

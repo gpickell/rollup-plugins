@@ -58,18 +58,18 @@ function hmr(options: HotModuleReloadOptions): Plugin {
     let hmrResolve = Promise.resolve();
     const cjsPrefix = prefixOf(urlToPath(import.meta.url, "./"));
     const dir = prefixOf(options.dir ?? "src");
-    const file = options.file ?? "hmr/manifest.json";
+    const file = options.file ?? "hot/hmr.json";
     const module = options.module ?? "@tsereact/rollup-plugin-hmr/hmr";
-    const entry = new Map<string, string>();
     const mtimes = new Map<string, bigint>();
+    const output = new Map<string, string>();
     return {
         name: "hmr",
 
         async buildStart() {
-            entry.clear();
             genId = (new Date()).valueOf();
             hmrId = "";
             hmrPrefix = "";
+            output.clear();
 
             const resolve = async () => {
                 const hmr =await this.resolve(module, undefined, { isEntry: false });
@@ -120,8 +120,7 @@ function hmr(options: HotModuleReloadOptions): Plugin {
                     }
 
                     if (opts.isEntry && result.id.startsWith(dir)) {
-                        const ref = result.id.substring(dir.length);
-                        entry.set(result.id, ref);
+                        return hmrRegister.wrap(result.id);
                     }
                 }
 
@@ -146,11 +145,23 @@ function hmr(options: HotModuleReloadOptions): Plugin {
                 }
 
                 if (hmrRegister.match(id)) {
-                    const ref = hmrRegister.ref(id);
+                    const fn = hmrRegister.ref(id);
+                    const ref = fn.substring(dir.length);
                     const result = [
                         `import { register } from ${JSON.stringify(hmrId)};\n`,
-                        `register(${JSON.stringify(ref)}, import.meta.hmrFile, import.meta.url);\n`
+                        `register(${JSON.stringify(ref)}, import.meta.hmrFile, import.meta.url);\n`,
+                        `export * from ${JSON.stringify(fn)};\n`,
                     ];
+
+                    const module = await this.load({ id: fn });
+                    if (module.hasDefaultExport) {
+                        const extra = [
+                            `import __default from ${JSON.stringify(fn)};\n`,
+                            `export default __default;\n`,    
+                        ];
+
+                        result.push(...extra);
+                    }
 
                     return result.join("");
                 }
@@ -159,7 +170,7 @@ function hmr(options: HotModuleReloadOptions): Plugin {
             return undefined;
         },
 
-        async transform(code, id) {
+        async transform(_, id) {
             if (id.startsWith(dir)) {
                 let detect = true;
                 if (id.startsWith(cjsPrefix)) {
@@ -172,21 +183,6 @@ function hmr(options: HotModuleReloadOptions): Plugin {
 
                 if (detect) {
                     mtimes.set(id, await stat(id));
-                }
-            }
-
-            const entryRef = entry.get(id);
-            if (entryRef !== undefined) {
-                const { mappings, ...map } = this.getCombinedSourcemap();
-                const ref = hmrRegister.wrap(entryRef);
-                const result = [
-                    `import ${JSON.stringify(ref)};\n`,
-                    code,
-                ];
-
-                return {
-                    code: result.join(""),
-                    map: { ...map, mappings: `;${mappings}` },
                 }
             }
 
@@ -252,10 +248,10 @@ function hmr(options: HotModuleReloadOptions): Plugin {
             return undefined;
         },
 
-        generateBundle(_, bundle) {
+        generateBundle(opts, bundle) {
             const chunks = {} as Record<string, string[]>;
             for (const chunk of Object.values(bundle)) {
-                if (chunk.type === "chunk") {
+                if (chunk?.type === "chunk") {
                     const array = [] as string[];
                     for (const id in chunk.modules) {
                         if (id.startsWith(dir)) {
@@ -265,7 +261,7 @@ function hmr(options: HotModuleReloadOptions): Plugin {
 
                     if (array.length > 0) {
                         const ref = path.relative(path.dirname(file), chunk.fileName);
-                        chunks[ref] = array;
+                        chunks[slashify(ref)] = array;
                     }
                 }
             }
@@ -274,12 +270,26 @@ function hmr(options: HotModuleReloadOptions): Plugin {
             hasher.update(JSON.stringify(chunks));
 
             const hash = hasher.digest("hex");
+            const source = {
+                hash, version: genId, chunks
+            };
+
+            const fn = path.resolve(opts.dir ?? ".", file);
+            const str = JSON.stringify(source, undefined, 4);
+            output.set(fn, str);
+
             this.emitFile({
                 type: "asset",
                 fileName: file,
-                source: JSON.stringify({ hash, version: genId, chunks }, undefined, 4),
+                source: "{}",
             });
         },
+
+        async closeBundle() {
+            for (const [fn, source] of output) {
+                await fs.writeFile(fn, source);
+            }
+        }
     }; 
 }
 

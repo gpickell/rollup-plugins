@@ -24,6 +24,11 @@ function slashify(file: string) {
     return file;
 }
 
+function makeModuleRelative(id: string) {
+    const result = slashify(id);
+    return result.startsWith("../") ? result : `./${result}`;
+}
+
 const defualtKey = {} as any;
 const defaultTemplate = `
 <html>
@@ -63,16 +68,12 @@ function groupsOf(bundle: OutputBundle) {
     }
 
     for (const group of groups.values()) {
-        const queue = new Set<string>();
-        for (const key in group) {
-            queue.add(key);
-        }
-
+        const queue = new Set(Object.keys(group));
         for (const key of queue) {
             const chunk = bundle[key];
-            group[key] = chunk;
+            if (chunk?.type === "chunk") {
+                group[key] = chunk;
 
-            if (chunk.type === "chunk") {
                 for (const key of chunk.imports) {
                     queue.add(key);
                 }
@@ -99,7 +100,7 @@ namespace stub {
         render(name: string, data: DataSet): void;
     }
 
-    function borwser(resolver: BrowserResolver): Plugin {
+    function browser(resolver: BrowserResolver): Plugin {
         const { name, template, output, render } = resolver;
         const dir = path.dirname(template);
         const tname = path.basename(template);
@@ -154,7 +155,7 @@ namespace stub {
     }
 
     export function browserModule(template = "static/index.html", cb?: BrowserCallback): Plugin {
-        return borwser({
+        return browser({
             name: "stub-browser-module",
             template,
 
@@ -174,7 +175,7 @@ namespace stub {
     }
 
     export function browserScript(template = "static/index.html", cb?: BrowserCallback): Plugin {
-        return borwser({
+        return browser({
             name: "stub-browser-script",
             template,
 
@@ -223,7 +224,7 @@ namespace stub {
                         for (const chunk of Object.values(bundle)) {
                             if (chunk.type === "chunk" && chunk.isEntry) {
                                 const rel = path.join(path.relative(dir, chunk.fileName));
-                                const ref = slashify(rel);
+                                const ref = makeModuleRelative(rel);
                                 code.push(render(ref));;
                             }
                         }
@@ -231,7 +232,7 @@ namespace stub {
                         this.emitFile({
                             type: "asset",
                             fileName: target,
-                            source: code.join(),
+                            source: code.join(""),
                         });
                     }
                 }
@@ -248,8 +249,7 @@ namespace stub {
             },
 
             render(name) {
-                const ref = JSON.stringify(`./${name}`);
-                return `import(${ref});\n`;
+                return `import(${JSON.stringify(name)});\n`;
             },
         });
     }
@@ -263,8 +263,7 @@ namespace stub {
             },
 
             render(name) {
-                const ref = JSON.stringify(`./${name}`);
-                return `require(${ref});\n`;
+                return `require(${JSON.stringify(name)});\n`;
             },
         });
     }

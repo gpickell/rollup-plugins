@@ -32,18 +32,9 @@ async function start(spec: string, array: Promise<Config>[]) {
     for (const { dev, path, roots } of configs) {
         for (const root of roots) {
             const hint = relative(fs.cwd, root);
-            if (dev) {
-                console.log("[WebServer]: [spec = %s]: Serve DevHot: %s =>", spec, path, hint);
-                fs.serveTrack(path, root);
-            } else {
-                console.log("[WebServer]: [spec = %s]: Serve Normal: %s =>", spec, path, hint);
-            }
-        }
-    }
+            console.log("[WebServer]: [spec = %s]: Serve: dev = %s, %s =>", spec, dev, path, hint);
 
-    for (const { dev, path, roots } of configs) {
-        if (dev) {
-            for (const root of roots) {
+            if (dev) {
                 fs.serveWatch(path, root, "hot");
             }
         }
@@ -72,11 +63,19 @@ async function start(spec: string, array: Promise<Config>[]) {
     }
 
     const server = http.createServer();
+    for (const { configure } of configs) {
+        await configure?.(fs, server);
+    }
+
     const [port, host] = spec.split("/");
     if (Number(port) > 0 && Number(port) < 0xffff) {
         server.listen(Number(port), host);
     } else {
         server.listen(spec);
+    }
+
+    if (server.listenerCount("request") < 1) {
+        server.on("request", fs.process);
     }
 
     server.on("error", err => {
@@ -116,7 +115,7 @@ function register(config: Config) {
     };
 }
 
-function web(options: Partial<Options> = {}): Plugin {
+function webServer(options: Partial<Options> = {}): Plugin {
     const roots = new Set<string>();
     const config: Config = {
         dev: !!(options?.dev),
@@ -129,13 +128,17 @@ function web(options: Partial<Options> = {}): Plugin {
     };
 
     const { root } = config;
+    if (typeof root === "string") {
+        roots.add(path.resolve(root));
+    }
+
     const resolve = register(config);
     return {
         name: "web",
 
-        renderStart(opts) {
-            if (typeof root !== "string" && opts.dir !== undefined) {
-                roots.add(path.resolve(opts.dir));
+        generateBundle(opts) {
+            if (typeof root !== "string") {
+                roots.add(path.resolve(opts.dir ?? "."));
             }
         },
 
@@ -145,4 +148,4 @@ function web(options: Partial<Options> = {}): Plugin {
     };
 }
 
-export default web;
+export default webServer;
