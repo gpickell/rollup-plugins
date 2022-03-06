@@ -29,5 +29,8 @@
                 "dist/*"
             ]
         }
+    },
+    "devDependencies": {
+        "rollup": "^2.68.0"
     }
 }

@@ -17,7 +17,7 @@
             "default": "./dist/*.js"
         },
         "./*": {
-            "module": ["./dist/*.mjs"],
+            "module": "./dist/*.mjs",
             "require": "./dist/*.js",
             "default": "./dist/*.js"
         }
@@ -29,5 +29,8 @@
                 "dist/*"
             ]
         }
+    },
+    "devDependencies": {
+        "rollup": "^2.68.0"
     }
 }

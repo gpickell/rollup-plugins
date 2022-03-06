@@ -1,7 +1,10 @@
 {
-  "name": "@experiments/sandbox",
-  "version": "1.0.0",
-  "main": "index.js",
-  "license": "MIT",
-  "type": "module"
+    "name": "@experiments/sandbox",
+    "version": "1.0.0",
+    "main": "index.js",
+    "license": "MIT",
+    "type": "module",
+    "devDependencies": {
+        "rollup": "^2.68.0"
+    }
 }
