@@ -38,10 +38,26 @@ class NodeWatch  extends Watch {
         this.add(() => watcher.close());
     }
 
+    async delay() {
+        return new Promise<void>(resolve => {
+            let timer: any;
+            const cleanup = () => clearTimeout(timer);
+            const tick = () => {
+                timer = undefined;
+                this.remove(cleanup);
+                resolve();
+            };
+    
+            timer = setTimeout(tick, 100);
+            this.add(cleanup);    
+        });
+    }
+
     async execute(fn: string, cb: (content: string) => any) {
         while (true) {
             const promise = this.wait();
             await readFile(fn, "utf-8").then(cb, nop);
+            await this.delay();
             await promise;
         }
     }

@@ -3,7 +3,10 @@ import type { Plugin } from "rollup";
 import fs from "fs/promises";
 import path from "path";
 
+import { Minimatch, IMinimatch } from "minimatch";
 import LockSet from "./LockSet";
+
+const keeps = new Map<string, IMinimatch[]>();
 
 function safeList(dir: string) {
     return fs.readdir(dir, { withFileTypes: true }).catch(() => []);
@@ -13,8 +16,39 @@ function safeUnlink(fn: string) {
     return fs.unlink(fn).catch(() => {});
 }
 
+function test(fn: string) {
+    for (const locks of LockSet.all()) {
+        if (locks.test(fn)) {
+            return true;
+        }
+    }
+
+    fn = fn.toLowerCase();
+
+    for (const [dir, matchers] of keeps) {
+        if (fn.startsWith(dir)) {
+            let result: boolean | undefined;
+            const rel = fn.substring(dir.length);
+            for (const matcher of matchers) {
+                if (result === undefined) {
+                    result = matcher.negate;
+                }
+
+                if (matcher.match(rel) !== matcher.negate) {
+                    result = !matcher.negate;
+                }
+            }
+
+            if (result) {
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
 interface Options {
-    keep: string[];
     gens: number;
 }
 
@@ -44,11 +78,8 @@ async function clean() {
     }
 
     for (const fn of files) {
-        for (const locks of LockSet.all()) {
-            if (locks.test(fn)) {
-                files.delete(fn);
-                break;
-            }
+        if (test(fn)) {
+            files.delete(fn);
         }
     }
 
@@ -61,27 +92,16 @@ async function clean() {
 let cleaner: Promise<void> | undefined;
 
 function omegaClean(options: Partial<Options> = {}): Plugin {
-    let keep = options.keep;
-    if (typeof keep === "string") {
-        keep = [keep];
-    }
-
-    if (!Array.isArray(keep)) {
-        keep = [];
-    }
-
-    keep = keep.filter(x => typeof x === "string");
-
     let maxgen = Number(options.gens);
     if (!isFinite(maxgen) || maxgen <= 0) {
         maxgen = 1;
     }
 
-    const files = new LockSet(maxgen, keep);
+    const files = new LockSet(maxgen);
     return {
         name: "omega-clean",
 
-        async generateBundle() {
+        async buildStart() {
             await files.open();
         },
 
@@ -102,6 +122,20 @@ function omegaClean(options: Partial<Options> = {}): Plugin {
             }
         }
     };
+}
+
+namespace omegaClean {
+    export function keep(dir: string, globs: string[]) {
+        dir = path.resolve(dir);
+        dir = path.normalize(`${dir}/`)
+        dir = dir.toLowerCase();
+
+        const matcher = (glob: string) => {
+            return new Minimatch(glob, { nocase: true });
+        };
+
+        keeps.set(dir, globs.map(matcher));
+    }
 }
 
 export default omegaClean;

@@ -13,9 +13,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@experiments/sandbox@workspace:experiments/sandbox":
+"@experiments/node-hmr@workspace:experiments/node-hmr":
   version: 0.0.0-use.local
-  resolution: "@experiments/sandbox@workspace:experiments/sandbox"
+  resolution: "@experiments/node-hmr@workspace:experiments/node-hmr"
   dependencies:
     rollup: ^2.68.0
   languageName: unknown

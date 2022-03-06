@@ -1,4 +1,3 @@
-import { Minimatch, IMinimatch } from "minimatch";
 import path from "path";
 
 class Trigger {
@@ -50,13 +49,11 @@ const open = new Trigger();
 export class LockSet extends Map<string, number> {
     readonly dirs = new Set<string>();
     readonly gens: number;
-    readonly keep: IMinimatch[];
 
-    constructor(gens: number, keep: string[]) {
+    constructor(gens: number) {
         super();
         this.gens = gens;
         all.add(this);
-        this.keep = keep.map(x => new Minimatch(x));
     }
 
     add(dir: string, fn: string) {
@@ -72,28 +69,6 @@ export class LockSet extends Map<string, number> {
         const gen = this.get(fn);
         if (gen !== undefined) {
             return true;
-        }
-
-        if (this.keep.length > 0) {
-            for (const dir of this.dirs) {
-                if (fn.startsWith(dir)) {
-                    let result: boolean | undefined;
-                    const rel = fn.substring(dir.length);
-                    for (const matcher of this.keep) {
-                        if (result === undefined) {
-                            result = matcher.negate;
-                        }
-
-                        if (matcher.match(rel) !== matcher.negate) {
-                            result = !matcher.negate;
-                        }
-                    }
-
-                    if (result) {
-                        return true;
-                    }
-                }
-            }
         }
 
         return false;

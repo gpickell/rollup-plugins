@@ -1,7 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "http";
 
+
 import { FSWatcher, watch } from "fs";
 import { mkdir } from "fs/promises";
+import { Minimatch, IMinimatch } from "minimatch";
 
 import Entity, { safeList } from "./Entity";
 
@@ -85,6 +87,7 @@ class FileServer extends Array<RequestHandler> {
         this.process = this.process.bind(this);
     }
 
+    readonly blacklist = new Map<string, IMinimatch[]>();
     readonly cache = new Cache();
     readonly contentTypes = new ContentTypes();
     readonly indexFiles = new IndexFiles();
@@ -92,6 +95,44 @@ class FileServer extends Array<RequestHandler> {
 
     cwd = process.cwd();
     log = false;
+
+    avoid(dir: string, globs: string[]) {
+        dir = path.resolve(dir);
+        dir = path.normalize(`${dir}/`)
+        dir = dir.toLowerCase();
+
+        const matcher = (glob: string) => {
+            return new Minimatch(glob, { nocase: true });
+        };
+
+        this.blacklist.set(dir, globs.map(matcher));
+    }
+
+    isBlocked(fn: string) {
+        fn = fn.toLowerCase();
+
+        for (const [dir, matchers] of this.blacklist) {
+            if (fn.startsWith(dir)) {
+                let result: boolean | undefined;
+                const rel = fn.substring(dir.length);
+                for (const matcher of matchers) {
+                    if (result === undefined) {
+                        result = matcher.negate;
+                    }
+
+                    if (matcher.match(rel) !== matcher.negate) {
+                        result = !matcher.negate;
+                    }
+                }
+
+                if (result) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     final(req: IncomingMessage, res: ServerResponse) {
         req.resume();
@@ -141,8 +182,14 @@ class FileServer extends Array<RequestHandler> {
         return false;
     }
 
-    contentType(fn: string) {
-        return this.contentTypes.get(path.extname(fn));
+    contentType(fn: string, fallback = true) {
+        if (this.isBlocked(fn)) {
+            return undefined;
+        }
+
+        const result = fallback ? this.contentTypes.fallback : undefined;
+        const ext = path.extname(fn).toLowerCase();
+        return this.contentTypes.get(ext) ?? result;
     }
 
     reparse(webPath: string, fsPath: string, url: string) {
@@ -159,6 +206,10 @@ class FileServer extends Array<RequestHandler> {
         const suffix = url.substring(webPath.length);
         const fn = path.resolve(path.join(fsPath, suffix));
         if (!this.isInScope(fsPath, fn)) {
+            return undefined;
+        }
+
+        if (this.isBlocked(fn)) {
             return undefined;
         }
 
@@ -307,7 +358,7 @@ class FileServer extends Array<RequestHandler> {
         return true;
     }
 
-    check(req: IncomingMessage, entity: Entity) {
+    isNoneMatch(req: IncomingMessage, entity: Entity) {
         const { etag, lastModified } = entity;
         const ifnm = req.headers["if-none-match"];
         if (etag && ifnm) {
@@ -334,7 +385,7 @@ class FileServer extends Array<RequestHandler> {
             return this.redirect(req, res, 302, `${suffix}/`);
         }
         
-        return this.error(req, res, 403);
+        return this.error(req, res, 404);
     }
 
     async writeFile(req: IncomingMessage, res: ServerResponse, entity: Entity) {
@@ -363,7 +414,7 @@ class FileServer extends Array<RequestHandler> {
         
         req.resume();
 
-        if (this.check(req, entity)) {
+        if (this.isNoneMatch(req, entity)) {
             res.statusCode = 304;
             res.end();
         } else {
@@ -579,8 +630,7 @@ class FileServer extends Array<RequestHandler> {
                         dirs.add(fn);
                     }
 
-                    const ext = path.extname(fn);
-                    if (dirent.isFile() && !this.cache.has(fn) && this.contentTypes.has(ext)) {
+                    if (dirent.isFile() && !this.cache.has(fn) && this.contentType(fn, false)) {
                         const entity = new Entity(fn, "");
                         this.cache.set(fn, entity);
                         ops.push(load(entity));
@@ -606,17 +656,21 @@ class FileServer extends Array<RequestHandler> {
             mw.serveWatch("/", root, "hot");
         }
 
+        let startup = Promise.resolve();
         if (preload) {
-            mw.preload("dist");
+            startup = mw.preload(root);
         }
 
         mw.serveFiles("/", root);
 
-        return mw;
+        return {
+            middleware: mw,
+            startup,
+        };
     }
 
     static createServer(dev = false, preload = false, root = "dist", spec = "7180/localhost") {
-        const mw = this.createMiddleware(dev, preload, root);
+        const { middleware: mw } = this.createMiddleware(dev, preload, root);
         const server = http.createServer();
         server.on("request", mw.process);
 

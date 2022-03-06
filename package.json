@@ -8,7 +8,8 @@
         ]
     },
     "scripts": {
-        "build": "yarn workspaces foreach -ipv --include '@tsereact/*' exec rollup -c rollup.config.js"
+        "build": "yarn workspaces foreach -pv --include '@tsereact/*' exec rollup -c rollup.config.js",
+        "build:watch": "yarn workspaces foreach -ipv --include '@tsereact/*' exec rollup -c rollup.config.js --watch"
     },
     "devDependencies": {
         "@rollup/plugin-commonjs": "^21.0.1",
