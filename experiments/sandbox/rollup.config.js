@@ -3,7 +3,7 @@ import { defineConfig } from "rollup";
 import hmr from "@tsereact/rollup-plugin-hmr";
 import omegaClean from "@tsereact/rollup-plugin-omega-clean";
 import stub from "@tsereact/rollup-plugin-stub";
-// import webServer from "@tsereact/rollup-plugin-web-server";
+import webServer from "@tsereact/rollup-plugin-web-server";
 
 import commonjs from "@rollup/plugin-commonjs";
 import nodeResolve from "@rollup/plugin-node-resolve";
@@ -26,7 +26,7 @@ export default defineConfig({
     plugins: [
         hmr(),
         stub.nodeImport(),
-        // webServer({ dev: true }),
+        webServer({ dev: true }),
         omegaClean({ gens: 2 }),
         commonjs(),
         nodeResolve(),

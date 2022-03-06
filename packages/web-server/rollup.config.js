@@ -8,6 +8,7 @@ export default defineConfig({
         "index": "src/index.ts",
         "Entity": "src/Entity.ts",
         "FileServer": "src/FileServer.ts",
-        "test": "src/test.ts",
+        "devServer": "src/devServer.ts",
+        "prodServer": "src/prodServer.ts",
     },
 });

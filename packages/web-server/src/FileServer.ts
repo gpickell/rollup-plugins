@@ -579,7 +579,8 @@ class FileServer extends Array<RequestHandler> {
                         dirs.add(fn);
                     }
 
-                    if (dirent.isFile() && !this.cache.has(fn)) {
+                    const ext = path.extname(fn);
+                    if (dirent.isFile() && !this.cache.has(fn) && this.contentTypes.has(ext)) {
                         const entity = new Entity(fn, "");
                         this.cache.set(fn, entity);
                         ops.push(load(entity));
@@ -599,33 +600,45 @@ class FileServer extends Array<RequestHandler> {
         return promise;
     }
 
-    configure(dev = false, preload = false, root = "dist") {
+    static createMiddleware(dev = false, preload = false, root = "dist") {
+        const mw = new this();
         if (dev) {
-            this.serveWatch("/", root, "hot");
+            mw.serveWatch("/", root, "hot");
         }
 
         if (preload) {
-            this.preload("dist");
+            mw.preload("dist");
         }
 
-        this.serveFiles("/", root);
+        mw.serveFiles("/", root);
+
+        return mw;
     }
 
     static createServer(dev = false, preload = false, root = "dist", spec = "7180/localhost") {
-        const mw = new FileServer();
-        mw.configure(dev, preload, root);
-
+        const mw = this.createMiddleware(dev, preload, root);
         const server = http.createServer();
         server.on("request", mw.process);
 
-        const [port, host] = spec.split("/");
-        if (Number(port) > 0 && Number(port) < 0xffff) {
-            server.listen(Number(port), host);
+        let [port, host] = spec.split("/") as any[];
+        port = Number(port);
+        host = !host ? "localhost" : host;
+
+        let url = "";
+        if (port > 0 && port < 0xffff) {
+            server.listen(port, host !== "*" ? host : undefined);
+
+            if (host === "*") {
+                host = "localhost";
+            }
+
+            url = `http://${host}:${port}/`;
         } else {
             server.listen(spec);
         }
 
         return {
+            url,
             middleware: mw,
             server,
         };

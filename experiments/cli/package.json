@@ -1,9 +1,9 @@
 {
-    "name": "@experiments/sandbox",
+    "name": "@experiments/cli",
     "version": "1.0.0",
     "license": "MIT",
     "type": "module",
     "devDependencies": {
-        "rollup": "^2.68.0"
+        "@tsereact/rollup-plugin-web-server": "*"
     }
 }

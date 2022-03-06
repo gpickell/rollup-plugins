@@ -5,6 +5,10 @@
     "module": "dist/index.mjs",
     "type": "commonjs",
     "license": "MIT",
+    "bin": {
+        "devServer": "cli/devServer.js",
+        "prodServer": "cli/prodServer.js"
+    },
     "exports": {
         ".": {
             "module": "./dist/index.mjs",

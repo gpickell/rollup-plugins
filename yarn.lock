@@ -5,6 +5,14 @@ __metadata:
   version: 6
   cacheKey: 8
 
+"@experiments/cli@workspace:experiments/cli":
+  version: 0.0.0-use.local
+  resolution: "@experiments/cli@workspace:experiments/cli"
+  dependencies:
+    "@tsereact/rollup-plugin-web-server": "*"
+  languageName: unknown
+  linkType: soft
+
 "@experiments/sandbox@workspace:experiments/sandbox":
   version: 0.0.0-use.local
   resolution: "@experiments/sandbox@workspace:experiments/sandbox"
@@ -131,11 +139,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@tsereact/rollup-plugin-web-server@workspace:packages/web-server":
+"@tsereact/rollup-plugin-web-server@*, @tsereact/rollup-plugin-web-server@workspace:packages/web-server":
   version: 0.0.0-use.local
   resolution: "@tsereact/rollup-plugin-web-server@workspace:packages/web-server"
   dependencies:
     rollup: ^2.68.0
+  bin:
+    devServer: cli/devServer.js
+    prodServer: cli/prodServer.js
   languageName: unknown
   linkType: soft
 

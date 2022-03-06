@@ -67,9 +67,16 @@ async function start(spec: string, array: Promise<Config>[]) {
         await configure?.(fs, server);
     }
 
-    const [port, host] = spec.split("/");
-    if (Number(port) > 0 && Number(port) < 0xffff) {
-        server.listen(Number(port), host);
+    let [port, host] = spec.split("/") as any[];
+    port = Number(port);
+    host = !host ? "localhost" : host;
+
+    if (port > 0 && port < 0xffff) {
+        server.listen(port, host !== "*" ? host : undefined);
+
+        if (host === "*") {
+            host = "localhost";
+        }
     } else {
         server.listen(spec);
     }
@@ -86,10 +93,10 @@ async function start(spec: string, array: Promise<Config>[]) {
         const addr = server.address();
         if (addr) {
             if (typeof addr === "string") {
-                console.log("[WebServer]: [spec = %s]: Listening on pipe:", spec, addr);
+                console.log("[WebServer]: Listening on pipe:", addr);
             } else {
                 const url = `http://${host}:${port}/`;
-                console.log("[WebServer]: [spec = %s]: Listening on port:", spec, url);
+                console.log("[WebServer]: Listening on port:", url);
             }
         }
     });
@@ -136,7 +143,7 @@ function webServer(options: Partial<Options> = {}): Plugin {
     return {
         name: "web",
 
-        generateBundle(opts) {
+        writeBundle(opts) {
             if (typeof root !== "string") {
                 roots.add(path.resolve(opts.dir ?? "."));
             }
