@@ -1,9 +1,6 @@
 import hmr from "@tsereact/rollup-plugin-hmr/hmr";
-import WebDriver from "@tsereact/rollup-plugin-hmr/client/WebDriver";
 
 if (hmr) {
-    WebDriver.connect();
-
     hmr.detach = function (next) {
         console.log("--- detach: next = %s", !!next);
     };

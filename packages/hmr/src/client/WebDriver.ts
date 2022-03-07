@@ -17,7 +17,7 @@ function bindFetch(): typeof fetch {
     
         if (typeof self === "object" && self?.fetch === fetch) {
             return self.fetch.bind(self);
-        }    
+        }
     }
 
     return invalidFetch;
@@ -115,6 +115,10 @@ class WebDriver extends Driver {
 
         return super.watch(url);
     }
+}
+
+export function connect() {
+    WebDriver.connect();
 }
 
 export default WebDriver;

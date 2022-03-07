@@ -28,13 +28,13 @@ export default defineConfig({
     },
     plugins: [
         /** Enable HMR. */
-        hmr(),
+        hmr({ init: hmr.nodeDriver }),
 
         /** Create a node stub for the entry point. */
         stub.nodeImport(),
 
         /** Cleanup the dist folder keeping 2 extra generations for HMR handoff. */
-        omegaClean({ gens: 3 }),
+        omegaClean(),
 
         commonjs(),
         nodeResolve(),

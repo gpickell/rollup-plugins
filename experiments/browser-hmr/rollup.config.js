@@ -10,8 +10,6 @@ import nodeResolve from "@rollup/plugin-node-resolve";
 import typescript from "@rollup/plugin-typescript";
 
 export default defineConfig({
-    treeshake: "smallest",
-
     input: {
         index: "src/index.ts",
     },
@@ -24,13 +22,13 @@ export default defineConfig({
     },
     plugins: [
         /** Enable HMR. */
-        hmr(),
+        hmr({ init: hmr.webDriver }),
 
         /** Create a html stub for the entry point. */
         stub.browserModule(),
 
         /** Cleanup the dist folder keeping 2 extra generations for HMR handoff. */
-        omegaClean({ gens: 3 }),
+        omegaClean(),
 
         /** Start dev/prod server. */
         webServer(),

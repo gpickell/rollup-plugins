@@ -96,4 +96,8 @@ class NodeDriver extends Driver {
     }
 }
 
+export function connect() {
+    NodeDriver.connect();
+}
+
 export default NodeDriver;

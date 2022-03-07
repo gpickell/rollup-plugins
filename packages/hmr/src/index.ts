@@ -13,6 +13,7 @@ export interface HotModuleReloadOptions {
     dev: boolean;
     dir: string;
     file: string;
+    init: string | ((id: string) => string | undefined);
     module: string;
 }
 
@@ -60,6 +61,7 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
     const dev = options.dev ?? watching;
     const dir = prefixOf(options.dir ?? "src");
     const file = options.file ?? "hot/hmr.json";
+    const init = options.init;
     const module = options.module ?? "@tsereact/rollup-plugin-hmr/hmr";
     const mtimes = new Map<string, bigint>();
     const output = new Map<string, string>();
@@ -140,41 +142,6 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
 
             return undefined;
         },
-
-        outputOptions(opts) {
-            const hmr = new Set<string>();
-            for (const id of this.getModuleIds()) {
-                if (id.startsWith(cjsPrefix)) {
-                    hmr.add(id);
-                }
-
-                if (hmrPrefix && id.startsWith(hmrPrefix)) {
-                    hmr.add(id);
-                }
-            }
-
-            if (opts.manualChunks) {
-                if (typeof opts.manualChunks === "object") {
-                    opts.manualChunks = {
-                        ...opts.manualChunks,
-                        hmr: [...hmr],
-                    };
-                } else {
-                    const fn = opts.manualChunks;
-                    opts.manualChunks = function (id, api) {
-                        if (hmr.has(id)) {
-                            return "hmr";
-                        }
-
-                        return fn.call(this, id, api);
-                    };
-                }
-            } else {
-                opts.manualChunks = { hmr: [...hmr] };
-            }
-
-            return opts;
-        },
     };
 
     const hot: Plugin = {
@@ -213,6 +180,20 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
                         result.push(...extra);
                     }
 
+                    let start = init;
+                    if (typeof start === "function") {
+                        start = start(fn);
+                    }
+
+                    if (start) {
+                        const extra = [
+                            `import { connect } from ${JSON.stringify(start)};\n`,
+                            `connect();\n`,
+                        ];
+
+                        result.unshift(...extra);
+                    }
+
                     return result.join("");
                 }
             }
@@ -237,6 +218,41 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
             }
 
             return undefined;
+        },
+
+        outputOptions(opts) {
+            const hmr = new Set<string>();
+            for (const id of this.getModuleIds()) {
+                if (id.startsWith(cjsPrefix)) {
+                    hmr.add(id);
+                }
+
+                if (hmrPrefix && id.startsWith(hmrPrefix)) {
+                    hmr.add(id);
+                }
+            }
+
+            if (opts.manualChunks) {
+                if (typeof opts.manualChunks === "object") {
+                    opts.manualChunks = {
+                        ...opts.manualChunks,
+                        hmr: [...hmr],
+                    };
+                } else {
+                    const fn = opts.manualChunks;
+                    opts.manualChunks = function (id, api) {
+                        if (hmr.has(id)) {
+                            return "hmr";
+                        }
+
+                        return fn.call(this, id, api);
+                    };
+                }
+            } else {
+                opts.manualChunks = { hmr: [...hmr] };
+            }
+
+            return opts;
         },
 
         augmentChunkHash(chunk) {
@@ -312,6 +328,11 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
     }
 
     return plugin;
+}
+
+namespace hmr {
+    export const nodeDriver = "@tsereact/rollup-plugin-hmr/client/NodeDriver";
+    export const webDriver = "@tsereact/rollup-plugin-hmr/client/WebDriver";
 }
 
 export default hmr;
