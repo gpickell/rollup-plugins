@@ -10,6 +10,8 @@ import nodeResolve from "@rollup/plugin-node-resolve";
 import typescript from "@rollup/plugin-typescript";
 
 export default defineConfig({
+    treeshake: "smallest",
+
     input: {
         index: "src/index.ts",
     },

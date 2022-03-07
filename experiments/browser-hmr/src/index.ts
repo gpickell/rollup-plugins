@@ -11,7 +11,7 @@ if (hmr) {
     console.log("--- hmr: id = %s, version = %s", hmr.id, hmr.version);
     console.log("--- hmr:", "modify me");
 
-    const text = document.createTextNode(`modify me 123`);
+    const text = document.createTextNode(`modify me`);
     const div = document.createElement("p");
     div.appendChild(text);
     document.body.appendChild(div);

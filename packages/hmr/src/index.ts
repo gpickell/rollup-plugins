@@ -50,24 +50,20 @@ function prefixOf(dir: string) {
 const hmrCreate = new Virtual("hmr-create");
 const hmrRegister = new Virtual("hmr-register");
 
-function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin | false {
-    const watching = process.env.ROLLUP_WATCH === "true";
-    const dev = options.dev ?? watching;
-    if (!dev) {
-        return false;
-    }
-
+function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
     let genId = 0;
     let hmrId = "";
     let hmrPrefix = "";
     let hmrResolve = Promise.resolve();
+    const watching = process.env.ROLLUP_WATCH === "true";
     const cjsPrefix = prefixOf(urlToPath(import.meta.url, "./"));
+    const dev = options.dev ?? watching;
     const dir = prefixOf(options.dir ?? "src");
     const file = options.file ?? "hot/hmr.json";
     const module = options.module ?? "@tsereact/rollup-plugin-hmr/hmr";
     const mtimes = new Map<string, bigint>();
     const output = new Map<string, string>();
-    return {
+    const plugin: Plugin = {
         name: "hmr",
 
         async buildStart() {
@@ -124,7 +120,7 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin | false {
                         return result;
                     }
 
-                    if (opts.isEntry && result.id.startsWith(dir)) {
+                    if (dev && opts.isEntry && result.id.startsWith(dir)) {
                         return hmrRegister.wrap(result.id);
                     }
                 }
@@ -134,6 +130,55 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin | false {
 
             return undefined;
         },
+        
+        async load(id) {
+            if (hmrId && id[0] === "\0") {
+                if (hmrCreate.match(id)) {
+                    return "export default undefined;"
+                }
+            }
+
+            return undefined;
+        },
+
+        outputOptions(opts) {
+            const hmr = new Set<string>();
+            for (const id of this.getModuleIds()) {
+                if (id.startsWith(cjsPrefix)) {
+                    hmr.add(id);
+                }
+
+                if (hmrPrefix && id.startsWith(hmrPrefix)) {
+                    hmr.add(id);
+                }
+            }
+
+            if (opts.manualChunks) {
+                if (typeof opts.manualChunks === "object") {
+                    opts.manualChunks = {
+                        ...opts.manualChunks,
+                        hmr: [...hmr],
+                    };
+                } else {
+                    const fn = opts.manualChunks;
+                    opts.manualChunks = function (id, api) {
+                        if (hmr.has(id)) {
+                            return "hmr";
+                        }
+
+                        return fn.call(this, id, api);
+                    };
+                }
+            } else {
+                opts.manualChunks = { hmr: [...hmr] };
+            }
+
+            return opts;
+        },
+    };
+
+    const hot: Plugin = {
+        name: "hmr",
 
         async load(id) {
             if (hmrId && id[0] === "\0") {
@@ -192,41 +237,6 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin | false {
             }
 
             return undefined;
-        },
-
-        outputOptions(opts) {
-            const hmr = new Set<string>();
-            for (const id of this.getModuleIds()) {
-                if (id.startsWith(cjsPrefix)) {
-                    hmr.add(id);
-                }
-
-                if (hmrPrefix && id.startsWith(hmrPrefix)) {
-                    hmr.add(id);
-                }
-            }
-
-            if (opts.manualChunks) {
-                if (typeof opts.manualChunks === "object") {
-                    opts.manualChunks = {
-                        ...opts.manualChunks,
-                        hmr: [...hmr],
-                    };
-                } else {
-                    const fn = opts.manualChunks;
-                    opts.manualChunks = function (id, api) {
-                        if (hmr.has(id)) {
-                            return "hmr";
-                        }
-
-                        return fn.call(this, id, api);
-                    };
-                }
-            } else {
-                opts.manualChunks = { hmr: [...hmr] };
-            }
-
-            return opts;
         },
 
         augmentChunkHash(chunk) {
@@ -295,7 +305,13 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin | false {
                 await fs.writeFile(fn, source);
             }
         }
-    }; 
+    };
+
+    if (dev) {
+        return { ...plugin, ...hot };
+    }
+
+    return plugin;
 }
 
 export default hmr;

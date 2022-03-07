@@ -3,6 +3,7 @@ import base from "../rollup.base.js";
 
 export default defineConfig({
     ...base,
+    
     input: {
         "index": "src/index.ts",
         "hmr": "src/hmr.ts",
