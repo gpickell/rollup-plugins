@@ -38,7 +38,7 @@ class NodeWatch  extends Watch {
         this.add(() => watcher.close());
     }
 
-    async delay() {
+    delay() {
         return new Promise<void>(resolve => {
             let timer: any;
             const cleanup = () => clearTimeout(timer);

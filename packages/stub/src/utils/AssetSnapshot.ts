@@ -53,15 +53,34 @@ class AssetSnapshot extends Map<string, [BigIntStats, Buffer]> {
         const result = new DataSet();
         result.add("title", "_");
 
+        let favicon: string | undefined;
         if (files.has("favicon.ico")) {
-            result.addElement("meta", {
-                href: "favicon.ico",
-                rel: "apple-icon",
+            favicon = "favicon.ico";
+        }
+
+        if (files.has("favicon.png")) {
+            favicon = "favicon.png";
+        }
+
+        if (favicon) {
+            result.addElement("link", {
+                rel: "icon",
+                href: favicon,
             });
 
-            result.addElement("meta", {
-                href: "favicon.ico",
+            result.addElement("link", {
                 rel: "apple-touch-icon",
+                href: favicon,
+            });
+        } else {
+            result.addElement("link", {
+                rel: "icon",
+                href: "data:,",
+            });
+
+            result.addElement("link", {
+                rel: "apple-touch-icon",
+                href: "data:,",
             });
         }
 

@@ -70,9 +70,16 @@ class Element {
             return key;
         }
 
-        if (key === "src") {
-            value = path.relative(dir, value);
-            value = slashify(value);
+        if (!value.startsWith("data:")) {
+            if (key === "src") {
+                value = path.relative(dir, value);
+                value = slashify(value);
+            }
+
+            if (key === "href") {
+                value = path.relative(dir, value);
+                value = slashify(value);
+            }
         }
 
         value = Element.escapeHtml(value);

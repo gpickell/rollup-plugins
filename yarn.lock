@@ -5,6 +5,14 @@ __metadata:
   version: 6
   cacheKey: 8
 
+"@experiments/browser-hmr@workspace:experiments/browser-hmr":
+  version: 0.0.0-use.local
+  resolution: "@experiments/browser-hmr@workspace:experiments/browser-hmr"
+  dependencies:
+    rollup: ^2.68.0
+  languageName: unknown
+  linkType: soft
+
 "@experiments/cli@workspace:experiments/cli":
   version: 0.0.0-use.local
   resolution: "@experiments/cli@workspace:experiments/cli"

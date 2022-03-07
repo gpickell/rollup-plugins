@@ -1,0 +1,9 @@
+{
+    "name": "@experiments/browser-hmr",
+    "version": "1.0.0",
+    "license": "MIT",
+    "type": "module",
+    "devDependencies": {
+        "rollup": "^2.68.0"
+    }
+}

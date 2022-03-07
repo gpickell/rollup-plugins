@@ -123,14 +123,15 @@ function register(config: Config) {
 }
 
 function webServer(options: Partial<Options> = {}): Plugin {
+    const watching = process.env.ROLLUP_WATCH === "true";
     const roots = new Set<string>();
     const config: Config = {
-        dev: !!(options?.dev),
-        preload: !!(options?.preload),
-        path: options?.path || "/",
-        spec: options?.spec || "7180/localhost", 
+        dev: !!(options.dev ?? watching),
+        preload: !!(options.preload ?? !watching),
+        path: options.path || "/",
+        spec: options.spec || "7180/localhost", 
         roots,
-        root: options?.root,
+        root: options.root,
         configure: options.configure,
     };
 

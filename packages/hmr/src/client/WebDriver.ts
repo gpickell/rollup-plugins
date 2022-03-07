@@ -36,22 +36,16 @@ class WebWatch extends Watch {
 
     delay() {
         return new Promise<void>(resolve => {
-            if (this.aborted) {
-
-            }
-
             let timer: any;
-            const remove = () => {
-                timer !== undefined && clearTimeout(timer);
-            };
-
+            const cleanup = () => clearTimeout(timer);
             const tick = () => {
                 timer = undefined;
+                this.remove(cleanup);
                 resolve();
             };
-
-            this.add(remove);
-            timer = setTimeout(tick, 3000);
+    
+            timer = setTimeout(tick, 100);
+            this.add(cleanup);  
         });
     }
 
@@ -75,9 +69,7 @@ class WebWatch extends Watch {
                     return res;
                 }
 
-                if (res.status === 405 || res.status === 200) {
-                    this.abort();
-                }
+                this.abort();
             } catch {
                 // don't care
             }

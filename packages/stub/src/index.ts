@@ -147,8 +147,8 @@ namespace stub {
     }
 
     function defaultHtmlTarget(name: string) {
-        if (name === "index") {
-            return "index";
+        if (name.endsWith("index")) {
+            return `${name}.html`;
         }
 
         return `${name}/index.html`;

@@ -92,9 +92,10 @@ async function clean() {
 let cleaner: Promise<void> | undefined;
 
 function omegaClean(options: Partial<Options> = {}): Plugin {
+    const watching = process.env.ROLLUP_WATCH === "true";
     let maxgen = Number(options.gens);
     if (!isFinite(maxgen) || maxgen <= 0) {
-        maxgen = 1;
+        maxgen = watching ? 3 : 1;
     }
 
     const files = new LockSet(maxgen);
@@ -109,6 +110,7 @@ function omegaClean(options: Partial<Options> = {}): Plugin {
             const dir = path.resolve(opts.dir ?? ".");
             for (const fn in bundle) {
                 files.add(dir, fn);
+                files.add(dir, fn + ".map");
             }
         },
 

@@ -171,7 +171,7 @@ export class Entity {
         return hash.digest("hex");
     }
 
-    async read(): Promise<Readable> {
+    read(): Readable {
         if (this.data !== undefined) {
             return new MemReadable(this.data);
         }
@@ -181,14 +181,11 @@ export class Entity {
         }
 
         const stream = this.content = this.fh.createReadStream();
-        await new Promise((resolve, reject) => {
-            stream.on("open", resolve);
-            stream.on("error", reject);
-        });
-
         const { transform } = this;
         if (transform !== undefined) {
             stream.pipe(transform);
+            stream.on("error", err => transform.destroy(err));
+
             return transform;
         }
 

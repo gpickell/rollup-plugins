@@ -10,9 +10,10 @@ import path from "path";
 import Virtual from "./utils/Virtual";
 
 export interface HotModuleReloadOptions {
-    dir?: string;
-    file?: string;
-    module?: string;
+    dev: boolean;
+    dir: string;
+    file: string;
+    module: string;
 }
 
 const statOptions = { bigint: true };
@@ -49,8 +50,12 @@ function prefixOf(dir: string) {
 const hmrCreate = new Virtual("hmr-create");
 const hmrRegister = new Virtual("hmr-register");
 
-function hmr(options: HotModuleReloadOptions): Plugin {
-    options = options ?? {};
+function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin | false {
+    const watching = process.env.ROLLUP_WATCH === "true";
+    const dev = options.dev ?? watching;
+    if (!dev) {
+        return false;
+    }
 
     let genId = 0;
     let hmrId = "";

@@ -214,7 +214,7 @@ class FileServer extends Array<RequestHandler> {
         }
 
         const entity = new Entity(fn, requestPath);
-        entity.contentType = this.contentType(entity.fsPath);
+        entity.contentType = this.contentType(entity.fsPath, true);
 
         return entity;
     }
@@ -401,6 +401,10 @@ class FileServer extends Array<RequestHandler> {
             entity.cacheControl = "public, max-age=604800, immutable";
         }
 
+        if (!entity.data && entity.transform) {
+            entity.contentLength = undefined;
+        }
+
         await this.tag(entity);
 
         entity.cacheControl && res.setHeader("Cache-Control", entity.cacheControl);
@@ -421,7 +425,9 @@ class FileServer extends Array<RequestHandler> {
             res.statusCode = 200;
 
             if (req.method !== "HEAD") {
-                const stream = await entity.read();
+                const stream = entity.read();
+                stream.on("error", () => {});
+
                 const promise = new Promise(x => res.on("unpipe", x));
                 stream.pipe(res);
                 await promise;
