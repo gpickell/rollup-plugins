@@ -27,7 +27,7 @@ export default defineConfig({
         /** Create a html stub for the entry point. */
         stub.browserModule(),
 
-        /** Cleanup the dist folder keeping 2 extra generations for HMR handoff. */
+        /** Cleanup plugin that prevents chunk hashes (when in watch, set to gens 3). */
         omegaClean(),
 
         /** Start dev/prod server. */

@@ -9,7 +9,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@experiments/browser-hmr@workspace:experiments/browser-hmr"
   dependencies:
-    rollup: ^2.68.0
+    rollup: ^2.70.0
   languageName: unknown
   linkType: soft
 
@@ -25,7 +25,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@experiments/node-hmr@workspace:experiments/node-hmr"
   dependencies:
-    rollup: ^2.68.0
+    rollup: ^2.70.0
   languageName: unknown
   linkType: soft
 
@@ -127,7 +127,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@tsereact/rollup-plugin-hmr@workspace:packages/hmr"
   dependencies:
-    rollup: ^2.68.0
+    rollup: ^2.70.0
   languageName: unknown
   linkType: soft
 
@@ -135,7 +135,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@tsereact/rollup-plugin-omega-clean@workspace:packages/omega-clean"
   dependencies:
-    rollup: ^2.68.0
+    rollup: ^2.70.0
   languageName: unknown
   linkType: soft
 
@@ -143,7 +143,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@tsereact/rollup-plugin-stub@workspace:packages/stub"
   dependencies:
-    rollup: ^2.68.0
+    rollup: ^2.70.0
   languageName: unknown
   linkType: soft
 
@@ -151,7 +151,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@tsereact/rollup-plugin-web-server@workspace:packages/web-server"
   dependencies:
-    rollup: ^2.68.0
+    rollup: ^2.70.0
   bin:
     devServer: cli/devServer.js
     prodServer: cli/prodServer.js
@@ -1016,9 +1016,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rollup@npm:^2.68.0":
-  version: 2.68.0
-  resolution: "rollup@npm:2.68.0"
+"rollup@npm:^2.70.0":
+  version: 2.70.0
+  resolution: "rollup@npm:2.70.0"
   dependencies:
     fsevents: ~2.3.2
   dependenciesMeta:
@@ -1026,7 +1026,7 @@ __metadata:
       optional: true
   bin:
     rollup: dist/bin/rollup
-  checksum: c883f6fb2e10e1c79a32527da0c50ef47a7beb8ddacfdae4197ff2d1911fb8d10bb2704496cf878d3048fbf3524d613bc87f25c5be0afc667fe30b7d04fa8092
+  checksum: 95075049f7a2c727a7bdd78c4a6fb4a468561b3de853c010d34fdd693d7c761d5838bcfaf4e49a441b34abbc22cceaa01af47f69f622cbd725678792b5f1acfb
   languageName: node
   linkType: hard
 
@@ -1041,7 +1041,7 @@ __metadata:
     "@types/node": ^17.0.19
     acorn-globals: ^6.0.0
     minimatch: ^5.0.1
-    rollup: ^2.68.0
+    rollup: ^2.70.0
     tslib: ^2.3.1
     typescript: ^4.5.5
   languageName: unknown

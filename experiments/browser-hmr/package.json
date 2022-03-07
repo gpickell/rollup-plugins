@@ -4,6 +4,6 @@
     "license": "MIT",
     "type": "module",
     "devDependencies": {
-        "rollup": "^2.68.0"
+        "rollup": "^2.70.0"
     }
 }
