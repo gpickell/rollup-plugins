@@ -287,7 +287,6 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
         },
 
         generateBundle(opts, bundle) {
-            let 
             const file = fileOf(this);
             const chunks = {} as Record<string, string[]>;
             for (const chunk of Object.values(bundle)) {
