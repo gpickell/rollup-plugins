@@ -131,6 +131,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@tsereact/rollup-plugin-hoist@workspace:packages/hoist":
+  version: 0.0.0-use.local
+  resolution: "@tsereact/rollup-plugin-hoist@workspace:packages/hoist"
+  dependencies:
+    rollup: ^2.70.0
+  languageName: unknown
+  linkType: soft
+
 "@tsereact/rollup-plugin-omega-clean@workspace:packages/omega-clean":
   version: 0.0.0-use.local
   resolution: "@tsereact/rollup-plugin-omega-clean@workspace:packages/omega-clean"

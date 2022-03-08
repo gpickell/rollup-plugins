@@ -1,5 +1,5 @@
 import type { BigIntStats, Stats } from "fs";
-import type { Plugin } from "rollup";
+import type { OutputPlugin, Plugin, PluginContext } from "rollup";
 
 import { urlToPath } from "./utils/url";
 
@@ -12,7 +12,6 @@ import Virtual from "./utils/Virtual";
 export interface HotModuleReloadOptions {
     dev: boolean;
     dir: string;
-    file: string;
     init: string | ((id: string) => string | undefined);
     module: string;
 }
@@ -48,19 +47,24 @@ function prefixOf(dir: string) {
     return dir;
 }
 
+const files = new WeakMap<OutputPlugin | PluginContext, string>();
+
+function fileOf(context: PluginContext) {
+    return files.get(context) ?? "hot/hmr.json";
+}
+
 const hmrCreate = new Virtual("hmr-create");
 const hmrRegister = new Virtual("hmr-register");
 
 function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
     let genId = 0;
     let hmrId = "";
-    let hmrPrefix = "";
     let hmrResolve = Promise.resolve();
+    const hmr = new Set<string>();
     const watching = process.env.ROLLUP_WATCH === "true";
     const cjsPrefix = prefixOf(urlToPath(import.meta.url, "./"));
     const dev = options.dev ?? watching;
     const dir = prefixOf(options.dir ?? "src");
-    const file = options.file ?? "hot/hmr.json";
     const init = options.init;
     const module = options.module ?? "@tsereact/rollup-plugin-hmr/hmr";
     const mtimes = new Map<string, bigint>();
@@ -71,14 +75,13 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
         async buildStart() {
             genId = (new Date()).valueOf();
             hmrId = "";
-            hmrPrefix = "";
+            mtimes.clear();
             output.clear();
 
             const resolve = async () => {
                 const hmr =await this.resolve(module, undefined, { isEntry: false });
                 if (hmr && !hmr.external) {
                     hmrId = hmr.id;
-                    hmrPrefix = prefixOf(hmrId);
                 }
             };
 
@@ -99,27 +102,11 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
             }
 
             if (hmrId) {
-                if (importer?.startsWith(cjsPrefix)) {
-                    return undefined;
-                }
-
-                if (importer?.startsWith(hmrPrefix)) {
-                    return undefined;
-                }
-
                 const result = await this.resolve(id, importer, { ...opts, skipSelf: true });
                 if (result && !result.external) {
                     if (result.id === hmrId && importer?.startsWith(dir)) {
                         const ref = importer.substring(dir.length);
                         return hmrCreate.wrap(ref);
-                    }
-
-                    if (result.id.startsWith(cjsPrefix)) {
-                        return result;
-                    }
-
-                    if (result.id.startsWith(hmrPrefix)) {
-                        return result;
                     }
 
                     if (dev && opts.isEntry && result.id.startsWith(dir)) {
@@ -201,56 +188,75 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
             return undefined;
         },
 
-        async transform(_, id) {
-            if (id.startsWith(dir)) {
-                let detect = true;
-                if (id.startsWith(cjsPrefix)) {
-                    detect = false;
-                }
-
-                if (id.startsWith(hmrPrefix)) {
-                    detect = false;   
-                }
-
-                if (detect) {
-                    mtimes.set(id, await stat(id));
+        async buildEnd() {
+            const map = new Map<string, Promise<bigint>>();
+            for (const id of this.getModuleIds()) {
+                if (id.startsWith(dir)) {
+                    map.set(id, stat(id));
                 }
             }
 
-            return undefined;
+            for (const [id, promise] of map) {
+                mtimes.set(id, await promise);
+            }
+
+            hmr.clear();
+            
+            for (const id of this.getModuleIds()) {
+                if (id === hmrId) {
+                    hmr.add(id);
+                }
+
+                if (id.startsWith(cjsPrefix)) {
+                    hmr.add(id);
+                }
+            }
+
+            for (const id of hmr) {
+                const info = this.getModuleInfo(id);
+                if (info) {
+                    for (const id of info.importedIds) {
+                        hmr.add(id);
+                    }
+
+                    for (const id of info.dynamicallyImportedIds) {
+                        hmr.add(id);
+                    }
+                }
+            }
+        },
+
+        renderStart(opts) {
+            for(const plugin of opts.plugins) {
+                const file = files.get(plugin);
+                file && files.set(this, file);
+            }
         },
 
         outputOptions(opts) {
-            const hmr = new Set<string>();
-            for (const id of this.getModuleIds()) {
-                if (id.startsWith(cjsPrefix)) {
-                    hmr.add(id);
+            const { manualChunks } = opts;
+            opts.manualChunks = function (id, api) {
+                if (hmr.has(id)) {
+                    return "hmr";
                 }
 
-                if (hmrPrefix && id.startsWith(hmrPrefix)) {
-                    hmr.add(id);
+                if (typeof manualChunks === "function") {
+                    return manualChunks.call(this, id, api);    
                 }
-            }
 
-            if (opts.manualChunks) {
-                if (typeof opts.manualChunks === "object") {
-                    opts.manualChunks = {
-                        ...opts.manualChunks,
-                        hmr: [...hmr],
-                    };
-                } else {
-                    const fn = opts.manualChunks;
-                    opts.manualChunks = function (id, api) {
-                        if (hmr.has(id)) {
-                            return "hmr";
+                if (manualChunks) {
+                    for (const key in manualChunks) {
+                        const array = manualChunks[key];
+                        for (const hint of array) {
+                            if (id.indexOf(hint) >= 0) {
+                                return key;
+                            }
                         }
-
-                        return fn.call(this, id, api);
-                    };
+                    }
                 }
-            } else {
-                opts.manualChunks = { hmr: [...hmr] };
-            }
+
+                return undefined;
+            };
 
             return opts;
         },
@@ -267,6 +273,7 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
 
         resolveImportMeta(prop, { chunkId }) {
             if (prop === "hmrFile") {
+                const file = fileOf(this);
                 const dir = path.dirname(chunkId);
                 const rel = slashify(path.relative(dir, file));
                 return JSON.stringify(rel);
@@ -280,6 +287,8 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
         },
 
         generateBundle(opts, bundle) {
+            let 
+            const file = fileOf(this);
             const chunks = {} as Record<string, string[]>;
             for (const chunk of Object.values(bundle)) {
                 if (chunk?.type === "chunk") {
@@ -331,6 +340,12 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
 }
 
 namespace hmr {
+    export function file(fn: string) {
+        const plugin: OutputPlugin = { name: "hmr-file" };
+        files.set(plugin, fn);
+        return plugin;
+    }
+
     export const nodeDriver = "@tsereact/rollup-plugin-hmr/client/NodeDriver";
     export const webDriver = "@tsereact/rollup-plugin-hmr/client/WebDriver";
 }
