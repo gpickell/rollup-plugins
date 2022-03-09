@@ -287,6 +287,7 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
         },
 
         generateBundle(opts, bundle) {
+            let kernel = "";
             const file = fileOf(this);
             const chunks = {} as Record<string, string[]>;
             for (const chunk of Object.values(bundle)) {
@@ -298,19 +299,26 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
                         }
                     }
 
+                    let ref = path.relative(path.dirname(file), chunk.fileName);
+                    ref = slashify(ref);
+
                     if (array.length > 0) {
-                        const ref = path.relative(path.dirname(file), chunk.fileName);
-                        chunks[slashify(ref)] = array;
+                        chunks[ref] = array;
+                    }
+
+                    if (hmrId in chunk.modules) {
+                        kernel = ref;
                     }
                 }
             }
 
             const hasher = crypto.createHash("sha256");
+            hasher.update(JSON.stringify(kernel));
             hasher.update(JSON.stringify(chunks));
 
             const hash = hasher.digest("hex");
             const source = {
-                hash, version: genId, chunks
+                hash, version: genId, kernel, chunks
             };
 
             const fn = path.resolve(opts.dir ?? ".", file);
