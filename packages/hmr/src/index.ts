@@ -1,8 +1,6 @@
 import type { BigIntStats, Stats } from "fs";
 import type { OutputPlugin, Plugin, PluginContext } from "rollup";
 
-import { urlToPath } from "./utils/url";
-
 import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
@@ -53,6 +51,7 @@ function fileOf(context: PluginContext) {
     return files.get(context) ?? "hot/hmr.json";
 }
 
+const hmrConnect = new Virtual("hmr-connect");;
 const hmrCreate = new Virtual("hmr-create");
 const hmrRegister = new Virtual("hmr-register");
 
@@ -62,7 +61,6 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
     let hmrResolve = Promise.resolve();
     const hmr = new Set<string>();
     const watching = process.env.ROLLUP_WATCH === "true";
-    const cjsPrefix = prefixOf(urlToPath(import.meta.url, "./"));
     const dev = options.dev ?? watching;
     const dir = prefixOf(options.dir ?? "src");
     const init = options.init;
@@ -79,7 +77,7 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
             output.clear();
 
             const resolve = async () => {
-                const hmr =await this.resolve(module, undefined, { isEntry: false });
+                const hmr = await this.resolve(module, undefined, { isEntry: false });
                 if (hmr && !hmr.external) {
                     hmrId = hmr.id;
                 }
@@ -93,6 +91,10 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
                 await hmrResolve;
             }
 
+            if (hmrConnect.match(id)) {
+                return id;
+            }
+
             if (hmrCreate.match(id)) {
                 return id;
             }
@@ -103,15 +105,18 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
 
             if (hmrId) {
                 const result = await this.resolve(id, importer, { ...opts, skipSelf: true });
-                if (result && !result.external) {
-                    if (result.id === hmrId && importer?.startsWith(dir)) {
-                        const ref = importer.substring(dir.length);
-                        return hmrCreate.wrap(ref);
-                    }
+                if (!result || result.external) {
+                    return result;
+                }
 
-                    if (dev && opts.isEntry && result.id.startsWith(dir)) {
-                        return hmrRegister.wrap(result.id);
-                    }
+                if (result.id === hmrId && importer?.startsWith(dir)) {
+                    const ref = importer.substring(dir.length);
+                    return hmrCreate.wrap(ref);
+                }
+
+                if (dev && opts.isEntry && result.id.startsWith(dir)) {
+                    const ref = result.id.substring(dir.length);
+                    return hmrRegister.wrap(ref);
                 }
 
                 return result;
@@ -121,10 +126,8 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
         },
         
         async load(id) {
-            if (hmrId && id[0] === "\0") {
-                if (hmrCreate.match(id)) {
-                    return "export default undefined;"
-                }
+            if (hmrCreate.match(id)) {
+                return "export default undefined;"
             }
 
             return undefined;
@@ -135,54 +138,58 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
         name: "hmr",
 
         async load(id) {
-            if (hmrId && id[0] === "\0") {
-                if (hmrCreate.match(id)) {
-                    const ref = hmrCreate.ref(id);
-                    const result = [
-                        `export * from ${JSON.stringify(hmrId)};\n`,
-                        `import { create, Context } from ${JSON.stringify(hmrId)};\n`,
-                        `const context = create(${JSON.stringify(ref)}, Context, import.meta.hmrVersion, import.meta.url);\n`,
-                        `export default context;\n`,
+            if (hmrConnect.match(id)) {
+                const ref = hmrConnect.ref(id);
+                const result = [
+                    `import { connect } from ${JSON.stringify(ref)};\n`,
+                    `connect();\n`,
+                ];
+
+                return result.join("");
+            }
+
+            if (hmrCreate.match(id)) {
+                const ref = hmrCreate.ref(id);
+                const result = [
+                    `export * from ${JSON.stringify(hmrId)};\n`,
+                    `import { create, Context } from ${JSON.stringify(hmrId)};\n`,
+                    `const context = create(${JSON.stringify(ref)}, Context, import.meta.hmrVersion, import.meta.url);\n`,
+                    `export default context;\n`,
+                ];
+
+                return result.join("");
+            }
+
+            if (hmrRegister.match(id)) {
+                const ref = hmrRegister.ref(id);
+                const fn = path.join(dir, ref);
+                const result = [
+                    `import { register } from ${JSON.stringify(hmrId)};\n`,
+                    `register(${JSON.stringify(ref)}, import.meta.hmrFile, import.meta.url);\n`,
+                    `export * from ${JSON.stringify(fn)};\n`,
+                ];
+
+                const module = await this.load({ id: fn });
+                if (module.hasDefaultExport) {
+                    const extra = [
+                        `import __default from ${JSON.stringify(fn)};\n`,
+                        `export default __default;\n`,    
                     ];
 
-                    return result.join("");
+                    result.push(...extra);
                 }
 
-                if (hmrRegister.match(id)) {
-                    const fn = hmrRegister.ref(id);
-                    const ref = fn.substring(dir.length);
-                    const result = [
-                        `import { register } from ${JSON.stringify(hmrId)};\n`,
-                        `register(${JSON.stringify(ref)}, import.meta.hmrFile, import.meta.url);\n`,
-                        `export * from ${JSON.stringify(fn)};\n`,
-                    ];
-
-                    const module = await this.load({ id: fn });
-                    if (module.hasDefaultExport) {
-                        const extra = [
-                            `import __default from ${JSON.stringify(fn)};\n`,
-                            `export default __default;\n`,    
-                        ];
-
-                        result.push(...extra);
-                    }
-
-                    let start = init;
-                    if (typeof start === "function") {
-                        start = start(fn);
-                    }
-
-                    if (start) {
-                        const extra = [
-                            `import { connect } from ${JSON.stringify(start)};\n`,
-                            `connect();\n`,
-                        ];
-
-                        result.unshift(...extra);
-                    }
-
-                    return result.join("");
+                let start = init;
+                if (typeof start === "function") {
+                    start = start(fn);
                 }
+
+                if (start) {
+                    const id = hmrConnect.wrap(start);
+                    result.unshift(`import ${JSON.stringify(id)};\n`);
+                }
+
+                return result.join("");
             }
 
             return undefined;
@@ -203,12 +210,15 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
             hmr.clear();
             
             for (const id of this.getModuleIds()) {
-                if (id === hmrId) {
-                    hmr.add(id);
-                }
+                const info = this.getModuleInfo(id);
+                if (info && (hmrConnect.match(id) || hmrCreate.match(id))) {
+                    for (const id of info.importedIds) {
+                        hmr.add(id);
+                    }
 
-                if (id.startsWith(cjsPrefix)) {
-                    hmr.add(id);
+                    for (const id of info.dynamicallyImportedIds) {
+                        hmr.add(id);
+                    }
                 }
             }
 
@@ -287,40 +297,38 @@ function hmr(options: Partial<HotModuleReloadOptions> = {}): Plugin {
         },
 
         generateBundle(opts, bundle) {
-            let kernel = "";
+            const refs = new Set<string>();
             const file = fileOf(this);
             const chunks = {} as Record<string, string[]>;
-            for (const chunk of Object.values(bundle)) {
-                if (chunk?.type === "chunk") {
+            for (const key of Object.keys(bundle).sort()) {
+                const chunk = bundle[key];
+                if (chunk.type === "chunk") {
+                    let ref = path.relative(path.dirname(file), chunk.fileName);
+                    ref = slashify(ref);
+
                     const array = [] as string[];
                     for (const id in chunk.modules) {
                         if (id.startsWith(dir)) {
                             array.push(id.substring(dir.length));
+                            chunks[ref] = array;
+                        }
+
+                        if (hmr.has(id)) {
+                            refs.add(ref);
                         }
                     }
 
-                    let ref = path.relative(path.dirname(file), chunk.fileName);
-                    ref = slashify(ref);
-
-                    if (array.length > 0) {
-                        chunks[ref] = array;
-                    }
-
-                    if (hmrId in chunk.modules) {
-                        kernel = ref;
-                    }
+                    array.sort();
                 }
             }
 
+            const kernel = [...refs].sort();
             const hasher = crypto.createHash("sha256");
             hasher.update(JSON.stringify(kernel));
             hasher.update(JSON.stringify(chunks));
 
             const hash = hasher.digest("hex");
-            const source = {
-                hash, version: genId, kernel, chunks
-            };
-
+            const source = { hash, version: genId, kernel, chunks };
             const fn = path.resolve(opts.dir ?? ".", file);
             const str = JSON.stringify(source, undefined, 4);
             output.set(fn, str);

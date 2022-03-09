@@ -86,12 +86,11 @@ interface Manifest {
     url?: string;
     hash: string;
     version: number;
+    kernel: string[];
     chunks: Record<string, string[]>;
 }
 
-let current: Manifest | undefined;
-
-function test(next: Manifest, url: string) {
+function test(current: Manifest | undefined, next: Manifest, url: string) {
     if (typeof next !== "object" || next === null) {
         return false;
     }
@@ -104,7 +103,15 @@ function test(next: Manifest, url: string) {
         return false;
     }
 
-    const { chunks } = next;
+    const { kernel, chunks } = next;
+    if (!Array.isArray(kernel)) {
+        return false;
+    }
+
+    if (kernel.some(x => typeof x !== "string")) {
+        return false;
+    }
+
     if (typeof chunks !== "object" || chunks === null) {
         return false;
     }
@@ -130,8 +137,14 @@ function test(next: Manifest, url: string) {
         }
     }
 
+    next.url = new URL(url).toString();
+    next.kernel = [];
     next.chunks = {};
-    next.url = url;
+
+    for (const key of kernel) {
+        const _key = (new URL(key, url)).toString();
+        next.kernel.push(_key);
+    }
 
     for (const key in chunks) {
         const _key = (new URL(key, url)).toString();
@@ -141,6 +154,60 @@ function test(next: Manifest, url: string) {
     current = next;
 
     return true;
+}
+
+let current: Manifest | undefined;
+let pending: [Manifest, Driver, string] | undefined;
+
+function reload(next: Manifest) {
+    const url = (new URL(import.meta.url)).toString();
+    return next.kernel.indexOf(url) < 0;
+}
+
+async function update() {
+    await Promise.resolve();
+
+    while (pending) {
+        const [next, driver, url] = pending;
+        const set = hints.get(url);
+        const exists = new Set<string>();
+        const spawn = new Set<string>();
+        const { chunks } = next;
+        for (const key in chunks) {
+            const files = chunks[key];
+            for (const file of files) {
+                exists.add(file);
+
+                if (set?.has(file)) {
+                    spawn.add(key)
+                }
+            }
+        }
+
+        if (reload(next)) {
+            for (const context of contexts.values()) {
+                driver.gc(context);
+            }
+
+            Driver.freeze();
+
+            current = undefined;
+            pending = undefined;
+        }
+
+        const all = [...spawn].map(x => driver.load(x));
+        await Promise.all(all);
+
+        if (current === next) {           
+            for (const context of contexts.values()) {
+                if (!exists.has(context.id)) {
+                    driver.gc(context);
+                }
+            }
+
+            pending = undefined;
+        }
+    }
 }
 
 export class Watch extends derive() {
@@ -225,34 +292,9 @@ class Driver {
     tap(url: string, payload: string) {
         try {
             const result = JSON.parse(payload) as Manifest;
-            if (test(result, url)) {
-                const set = hints.get(url);
-                const exists = new Set<string>();
-                const spawn = new Set<string>();
-                const { chunks } = result;
-                for (const key in chunks) {
-                    const files = chunks[key];
-                    for (const file of files) {
-                        exists.add(file);
-
-                        if (set?.has(file)) {
-                            spawn.add(key)
-                        }
-                    }
-                }
-
-                const promises = [...spawn].map(x => this.load(x));
-                Promise.all(promises).then(() => {
-                    if (current === result) {
-                        for (const context of contexts.values()) {
-                            if (!exists.has(context.id)) {
-                                this.gc(context);
-                            }
-                        }
-                    }
-                });
-
-                watch.pulse();
+            if (test(current, result, url)) {
+                pending || update();
+                pending = [current = result, this, url];
             }
         } catch {
             // parse failure
