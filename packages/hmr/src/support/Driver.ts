@@ -167,7 +167,7 @@ function reload(next: Manifest) {
 async function update() {
     await Promise.resolve();
 
-    while (pending) {
+    while (pending && !Object.isFrozen(drivers)) {
         const [next, driver, url] = pending;
         const set = hints.get(url);
         const exists = new Set<string>();
